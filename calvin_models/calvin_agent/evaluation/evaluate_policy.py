@@ -298,7 +298,7 @@ def set_up_eval_config(config, trainer):
     val_annotations = OmegaConf.load(conf_dir / "annotations/new_playtable_validation.yaml")
 
     eval_log_dir = os.path.join(
-        config["logging"]["model_directory"],
+        config["logging"]["vis_directory"],
         config["trainer"]["load"]["experiment_name"],
         config["trainer"]["load"]["run_id"],
     )
