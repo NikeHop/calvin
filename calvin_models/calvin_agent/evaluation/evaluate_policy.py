@@ -94,7 +94,7 @@ class MyModel(CustomModel):
         self.data_keys = {"rgb_static", "robot_obs", "rgb_gripper"}
         self.action_dim = config["trainer"]["model"]["action_dim"]
         self.relative_action = True
-        self.logging_directory = os.path.join(config["logging"]["model_directory"],config["trainer"]["load"]["experiment_name"],config["trainer"]["load"]["run_id"])
+        self.logging_directory = os.path.join(config["logging"]["vis_directory"],config["trainer"]["load"]["experiment_name"],config["trainer"]["load"]["run_id"])
         
         if not os.path.exists(self.logging_directory):
             os.makedirs(self.logging_directory)
