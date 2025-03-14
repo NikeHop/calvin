@@ -27,7 +27,11 @@ from calvin_agent.evaluation.utils import (
     join_vis_lang,
     print_and_save,
 )
-from calvin_agent.utils.utils import get_all_checkpoints, get_checkpoints_for_epochs, get_last_checkpoint
+from calvin_agent.utils.utils import (
+    get_all_checkpoints,
+    get_checkpoints_for_epochs,
+    get_last_checkpoint,
+)
 import clip
 import hydra
 from omegaconf import OmegaConf
@@ -58,7 +62,9 @@ def make_env(dataset_path):
 
 class CustomModel(CalvinBaseModel):
     def __init__(self):
-        logger.warning("Please implement these methods as an interface to your custom model architecture.")
+        logger.warning(
+            "Please implement these methods as an interface to your custom model architecture."
+        )
         raise NotImplementedError
 
     def reset(self):
@@ -94,8 +100,12 @@ class MyModel(CustomModel):
         self.data_keys = {"rgb_static", "robot_obs", "rgb_gripper"}
         self.action_dim = config["trainer"]["model"]["action_dim"]
         self.relative_action = True
-        self.logging_directory = os.path.join(config["logging"]["vis_directory"],config["trainer"]["load"]["experiment_name"],config["trainer"]["load"]["run_id"])
-        
+        self.logging_directory = os.path.join(
+            config["logging"]["vis_directory"],
+            config["trainer"]["load"]["experiment_name"],
+            config["trainer"]["load"]["run_id"],
+        )
+
         if not os.path.exists(self.logging_directory):
             os.makedirs(self.logging_directory)
 
@@ -112,7 +122,7 @@ class MyModel(CustomModel):
     def reset(self):
         self.current_step = 0
         self.current_goal = None
-        if len(self.obs_seq)>0:
+        if len(self.obs_seq) > 0:
             self.past_seqs.append(self.obs_seq)
         self.obs_seq = []
         self.last_action = torch.zeros(self.action_dim).reshape(1, -1).to(self.device)
@@ -122,10 +132,10 @@ class MyModel(CustomModel):
         self._to_device(obs)
 
         # Create observations sequence
-        if goal!=self.current_goal:
-            resample=True
+        if goal != self.current_goal:
+            resample = True
         else:
-            resample=False
+            resample = False
         self.current_goal = goal
         self.current_instruction = self.encode_language_goal(goal)
         obs["instructions"] = self.current_instruction
@@ -135,7 +145,7 @@ class MyModel(CustomModel):
         seq = self.create_seq()
 
         # Act
-        action = self.trainer.act(seq,self.device,resample=resample)
+        action = self.trainer.act(seq, self.device, resample=resample)
         self.last_action = action
 
         return self.postprocess_action(action)
@@ -146,17 +156,17 @@ class MyModel(CustomModel):
             action = action.squeeze().cpu().detach().numpy()
             action = np.split(action, [3, 6])
             action[-1] = 1 if action[-1] > 0 else -1
-            return {"action":action,"type":"cartesian_abs"}
+            return {"action": action, "type": "cartesian_abs"}
         else:
             action = action.squeeze().cpu().detach().numpy()
             action[-1] = 1 if action[-1] > 0 else -1
-            return {"action":action,"type":"cartesian_rel"}
+            return {"action": action, "type": "cartesian_rel"}
 
     def encode_language_goal(self, goal):
         if self.lang_clip:
             return self.model.encode_text(clip.tokenize(goal).to(self.device))
         else:
-            return torch.from_numpy(self.lang_embeddings[goal]).float().reshape(1,-1)
+            return torch.from_numpy(self.lang_embeddings[goal]).float().reshape(1, -1)
 
     def save_video_recording(self):
         # Add current observation sequence
@@ -177,7 +187,7 @@ class MyModel(CustomModel):
         if not os.path.exists(log_dir):
             os.makedirs(log_dir)
 
-        # Save video 
+        # Save video
         video_file = os.path.join(log_dir, f"{self.n_videos}.mp4")
         with open(video_file, "wb+") as file:
             write_video(video_file, video, fps=20)
@@ -187,8 +197,8 @@ class MyModel(CustomModel):
         text_file = os.path.join(log_dir, f"{self.n_videos}.txt")
         with open(text_file, "w+") as file:
             file.write(text)
-        
-        self.n_videos += 1 
+
+        self.n_videos += 1
         self.past_seqs = []
         self.obs_seq = []
 
@@ -202,8 +212,12 @@ class MyModel(CustomModel):
 
         for obs in self.obs_seq:
             if self.depth:
-                i_obs = torch.cat([obs["rgb_static"],obs["depth_static"].unsqueeze(-1)],dim=-1)
-                g_obs = torch.cat([obs["rgb_gripper"],obs["depth_gripper"].unsqueeze(-1)],dim=-1)
+                i_obs = torch.cat(
+                    [obs["rgb_static"], obs["depth_static"].unsqueeze(-1)], dim=-1
+                )
+                g_obs = torch.cat(
+                    [obs["rgb_gripper"], obs["depth_gripper"].unsqueeze(-1)], dim=-1
+                )
             else:
                 i_obs = obs["rgb_static"]
                 g_obs = obs["rgb_gripper"]
@@ -212,7 +226,7 @@ class MyModel(CustomModel):
             gripper_obs.append(g_obs)
             proprioception.append(obs["robot_obs"])
             actions.append(obs["actions"])
-      
+
         # Concatenate observations
         img_obs = torch.stack(img_obs, dim=0)
         proprioception = torch.stack(proprioception, dim=0)
@@ -224,11 +238,12 @@ class MyModel(CustomModel):
         img_obs = pad_sequence([img_obs], batch_first=True).float()
         proprioception = pad_sequence([proprioception], batch_first=True).float()
         actions = pad_sequence([actions], batch_first=True).float()
-        instructions = pad_sequence([self.obs_seq[-1]["instructions"]], batch_first=True).float()
+        instructions = pad_sequence(
+            [self.obs_seq[-1]["instructions"]], batch_first=True
+        ).float()
         inst_length = torch.tensor([1], dtype=torch.long).reshape(1, -1)
         obs_length = torch.tensor([len(self.obs_seq)], dtype=torch.long)
         mask = torch.ones(1).bool()
-        
 
         return {
             "img_obs": img_obs,
@@ -238,7 +253,7 @@ class MyModel(CustomModel):
             "instructions": instructions,
             "inst_length": inst_length,
             "obs_length": obs_length,
-            "mask": mask
+            "mask": mask,
         }
 
     def _unpack(self, data):
@@ -259,43 +274,59 @@ class MyModel(CustomModel):
                 data[key] = torch.from_numpy(value).to(self.device)
 
     def _load_lang_embeddings(self):
-        filename = os.path.join(self.config["data"]["dataset_directory"],'validation',"lang_annotations","embeddings.npy")
-        with open(filename,"rb") as file:
-            embeddings = np.load(file,allow_pickle=True).item()
-        
+        filename = os.path.join(
+            self.config["data"]["dataset_directory"],
+            "validation",
+            "lang_annotations",
+            "embeddings.npy",
+        )
+        with open(filename, "rb") as file:
+            embeddings = np.load(file, allow_pickle=True).item()
+
         if self.config["data"]["task_embeddings"]:
-            self.inst2task = {value["ann"][0]: key for key,value in embeddings.items()}
-            
-            directory = os.path.join(self.config["data"]["dataset_directory"],'training')
-            with open(os.path.join(directory,"row2task.pkl"),"rb") as file:
+            self.inst2task = {value["ann"][0]: key for key, value in embeddings.items()}
+
+            directory = os.path.join(
+                self.config["data"]["dataset_directory"], "training"
+            )
+            with open(os.path.join(directory, "row2task.pkl"), "rb") as file:
                 row2task = pickle.load(file)
-                task2row = {task:row for row, task in row2task.items()}
-        
-            with open(os.path.join(directory,"task2instructions.pkl"),"rb") as file:
+                task2row = {task: row for row, task in row2task.items()}
+
+            with open(os.path.join(directory, "task2instructions.pkl"), "rb") as file:
                 task2instructions = pickle.load(file)
                 instructions2task = {}
                 for task, instructions in task2instructions.items():
                     for inst in instructions:
-                        instructions2task[inst] = task 
+                        instructions2task[inst] = task
 
-            with open(os.path.join(directory,"lang_annotations","auto_lang_ann.npy"),"rb") as file:
-                lang = np.load(file,allow_pickle=True).item()
+            with open(
+                os.path.join(directory, "lang_annotations", "auto_lang_ann.npy"), "rb"
+            ) as file:
+                lang = np.load(file, allow_pickle=True).item()
                 task_embeddings = lang["language"]["task_emb"]
-                
+
             self.lang_embeddings = {}
             for inst, task in self.inst2task.items():
                 row = task2row[task]
                 self.lang_embeddings[inst] = task_embeddings[row]
         else:
-            self.lang_embeddings = {value["ann"][0]: value["emb"] for value in embeddings.values()}
-        
+            self.lang_embeddings = {
+                value["ann"][0]: value["emb"] for value in embeddings.values()
+            }
+
+
 def set_up_eval_config(config, trainer):
     env = make_env(config["data"]["dataset_directory"])
     model = MyModel(config, trainer)
     conf_dir = Path(__file__).absolute().parents[2] / "conf"
-    task_cfg = OmegaConf.load(conf_dir / "callbacks/rollout/tasks/new_playtable_tasks.yaml")
+    task_cfg = OmegaConf.load(
+        conf_dir / "callbacks/rollout/tasks/new_playtable_tasks.yaml"
+    )
     task_oracle = hydra.utils.instantiate(task_cfg)
-    val_annotations = OmegaConf.load(conf_dir / "annotations/new_playtable_validation.yaml")
+    val_annotations = OmegaConf.load(
+        conf_dir / "annotations/new_playtable_validation.yaml"
+    )
 
     eval_log_dir = os.path.join(
         config["logging"]["vis_directory"],
@@ -305,7 +336,6 @@ def set_up_eval_config(config, trainer):
 
     eval_sequences = get_sequences(config["data"]["evaluation"]["num_eval_sequences"])
 
-    
     return {
         "eval_sequences": eval_sequences,
         "model": model,
@@ -355,24 +385,42 @@ def evaluate_policy(
         else:
             model.record_video = False
 
-        result = evaluate_sequence(env, model, task_oracle, initial_state, eval_sequence, val_annotations, plans, debug)
+        result = evaluate_sequence(
+            env,
+            model,
+            task_oracle,
+            initial_state,
+            eval_sequence,
+            val_annotations,
+            plans,
+            debug,
+        )
         results.append(result)
-        
+
         if model.record_video:
             model.save_video_recording()
         model.clean_past_seq()
 
         if not debug:
             eval_sequences.set_description(
-                " ".join([f"{i + 1}/5 : {v * 100:.1f}% |" for i, v in enumerate(count_success(results))]) + "|"
+                " ".join(
+                    [
+                        f"{i + 1}/5 : {v * 100:.1f}% |"
+                        for i, v in enumerate(count_success(results))
+                    ]
+                )
+                + "|"
             )
 
     success_rates = count_success(results)
-    evaluation_info = {f"evaluation/step_{i}": success_rate for i, success_rate in enumerate(success_rates)}
+    evaluation_info = {
+        f"evaluation/step_{i}": success_rate
+        for i, success_rate in enumerate(success_rates)
+    }
     wandb.log(evaluation_info)
 
     eval_log_dir = Path(os.path.join(eval_log_dir))
-    
+
     if create_plan_tsne:
         create_tsne(plans, eval_log_dir, epoch)
     print_and_save(results, eval_sequences, eval_log_dir)
@@ -380,7 +428,16 @@ def evaluate_policy(
     return results
 
 
-def evaluate_sequence(env, model, task_checker, initial_state, eval_sequence, val_annotations, plans, debug):
+def evaluate_sequence(
+    env,
+    model,
+    task_checker,
+    initial_state,
+    eval_sequence,
+    val_annotations,
+    plans,
+    debug,
+):
     """
     Evaluates a sequence of language instructions.
     """
@@ -399,12 +456,14 @@ def evaluate_sequence(env, model, task_checker, initial_state, eval_sequence, va
         print(f"Evaluating sequence: {' -> '.join(eval_sequence)}")
         print("Subtask: ", end="")
     for subtask in eval_sequence:
-        success = rollout(env, model, task_checker, subtask, val_annotations, plans, debug)
+        success = rollout(
+            env, model, task_checker, subtask, val_annotations, plans, debug
+        )
         if success:
             success_counter += 1
         else:
             return success_counter
-    
+
     return success_counter
 
 
@@ -431,9 +490,11 @@ def rollout(env, model, task_oracle, subtask, val_annotations, plans, debug):
         if step == 0:
             # for tsne plot, only if available
             collect_plan(model, plans, subtask)
-        
+
         # check if current step solves a task
-        current_task_info = task_oracle.get_task_info_for_set(start_info, current_info, {subtask})
+        current_task_info = task_oracle.get_task_info_for_set(
+            start_info, current_info, {subtask}
+        )
         if len(current_task_info) > 0:
             if debug:
                 print(colored("success", "green"), end=" ")

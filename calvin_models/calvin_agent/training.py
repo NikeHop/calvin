@@ -12,7 +12,11 @@ from pytorch_lightning.strategies import DDPStrategy
 
 sys.path.insert(0, Path(__file__).absolute().parents[1].as_posix())
 import calvin_agent.models.mcil as models_m
-from calvin_agent.utils.utils import get_git_commit_hash, get_last_checkpoint, print_system_env_info
+from calvin_agent.utils.utils import (
+    get_git_commit_hash,
+    get_last_checkpoint,
+    print_system_env_info,
+)
 import hydra
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from pytorch_lightning import Callback, LightningModule, seed_everything, Trainer
@@ -32,17 +36,25 @@ def train(cfg: DictConfig) -> None:
     """
     # sets seeds for numpy, torch, python.random and PYTHONHASHSEED.
     seed_everything(cfg.seed, workers=True)  # type: ignore
-    datamodule = hydra.utils.instantiate(cfg.datamodule, training_repo_root=Path(calvin_agent.__file__).parents[2])
+    datamodule = hydra.utils.instantiate(
+        cfg.datamodule, training_repo_root=Path(calvin_agent.__file__).parents[2]
+    )
     chk = get_last_checkpoint(Path.cwd())
 
     # Load Model
     if chk is not None:
-        model = getattr(models_m, cfg.model["_target_"].split(".")[-1]).load_from_checkpoint(chk.as_posix())
+        model = getattr(
+            models_m, cfg.model["_target_"].split(".")[-1]
+        ).load_from_checkpoint(chk.as_posix())
     else:
         model = hydra.utils.instantiate(cfg.model)
 
     log_rank_0(f"Training with the following config:\n{OmegaConf.to_yaml(cfg)}")
-    log_rank_0("Repo commit hash: {}".format(get_git_commit_hash(Path(hydra.utils.to_absolute_path(__file__)))))
+    log_rank_0(
+        "Repo commit hash: {}".format(
+            get_git_commit_hash(Path(hydra.utils.to_absolute_path(__file__)))
+        )
+    )
     log_rank_0(print_system_env_info())
 
     train_logger = setup_logger(cfg, model)
@@ -58,7 +70,9 @@ def train(cfg: DictConfig) -> None:
     # Configure multi-GPU training
     if is_multi_gpu_training(trainer_args["devices"]):
         # increase default timeout for loading data into shared memory
-        trainer_args["strategy"] = DDPStrategy(find_unused_parameters=False, timeout=timedelta(seconds=3600))
+        trainer_args["strategy"] = DDPStrategy(
+            find_unused_parameters=False, timeout=timedelta(seconds=3600)
+        )
         if not cfg.slurm:
             modify_argv_hydra()
 

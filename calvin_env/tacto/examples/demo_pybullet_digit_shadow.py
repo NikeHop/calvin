@@ -25,7 +25,7 @@ def main(cfg):
     digits = tacto.Sensor(
         **cfg.tacto,
         **{"config_path": tacto.get_digit_shadow_config_path()},
-        background=bg
+        background=bg,
     )
 
     # Initialize World
