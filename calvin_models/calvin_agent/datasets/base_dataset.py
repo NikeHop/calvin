@@ -12,11 +12,36 @@ from calvin_agent.datasets.utils.episode_utils import (
 )
 import numpy as np
 from omegaconf import DictConfig
-import pyhash
 import torch
 from torch.utils.data import Dataset
 
-hasher = pyhash.fnv1_32()
+
+def fnv1a_32_hash(data):
+    """
+    FNV-1a 32-bit hash function implementation.
+
+    Args:
+        data: String or bytes to hash
+
+    Returns:
+        32-bit hash value as integer
+    """
+    if isinstance(data, str):
+        data = data.encode("utf-8")
+
+    # FNV-1a constants
+    FNV_OFFSET_BASIS = 0x811C9DC5
+    FNV_PRIME = 0x01000193
+
+    hash_val = FNV_OFFSET_BASIS
+    for byte in data:
+        hash_val ^= byte
+        hash_val = (hash_val * FNV_PRIME) & 0xFFFFFFFF  # Keep 32 bits
+
+    return hash_val
+
+
+hasher = fnv1a_32_hash
 logger = logging.getLogger(__name__)
 
 
